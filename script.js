@@ -89,38 +89,65 @@ async function processPageOrder() {
     const orderInput = document.getElementById('page-order').value;
     if (!orderInput || !currentPDF) return;
 
-    const order = orderInput.split('').map(num => parseInt(num));
+    // 解析输入的页码顺序
+    const order = [];
+    const parts = orderInput.split(',');
+    
+    for (const part of parts) {
+        const trimmedPart = part.trim();
+        if (trimmedPart.includes('-')) {
+            // 处理范围格式 (例如: 1-5)
+            const [start, end] = trimmedPart.split('-').map(num => parseInt(num.trim()));
+            if (!isNaN(start) && !isNaN(end) && start <= end) {
+                for (let i = start; i <= end; i++) {
+                    if (i > 0 && i <= currentPDF.numPages) {
+                        order.push(i);
+                    }
+                }
+            }
+        } else {
+            // 处理单个页码
+            const pageNum = parseInt(trimmedPart);
+            if (!isNaN(pageNum) && pageNum > 0 && pageNum <= currentPDF.numPages) {
+                order.push(pageNum);
+            }
+        }
+    }
+
+    if (order.length === 0) {
+        alert('请输入有效的页码顺序！');
+        return;
+    }
+
     const previewContainer = document.getElementById('pdf-preview');
     previewContainer.innerHTML = '';
 
     // 重新排序页面
     for (const pageNum of order) {
-        if (pageNum > 0 && pageNum <= currentPDF.numPages) {
-            const page = await currentPDF.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 0.3 });
-            
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+        const page = await currentPDF.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 0.3 });
+        
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-            await page.render({
-                canvasContext: context,
-                viewport: viewport
-            }).promise;
+        await page.render({
+            canvasContext: context,
+            viewport: viewport
+        }).promise;
 
-            const thumbnail = document.createElement('div');
-            thumbnail.className = 'page-thumbnail';
-            thumbnail.dataset.pageNumber = pageNum;
-            
-            thumbnail.innerHTML = `
-                <img src="${canvas.toDataURL()}" alt="Page ${pageNum}">
-                <span class="page-number">${pageNum}</span>
-                <button class="delete-btn" onclick="deletePage(${pageNum})">删除</button>
-            `;
-            
-            previewContainer.appendChild(thumbnail);
-        }
+        const thumbnail = document.createElement('div');
+        thumbnail.className = 'page-thumbnail';
+        thumbnail.dataset.pageNumber = pageNum;
+        
+        thumbnail.innerHTML = `
+            <img src="${canvas.toDataURL()}" alt="Page ${pageNum}">
+            <span class="page-number">${pageNum}</span>
+            <button class="delete-btn" onclick="deletePage(${pageNum})">删除</button>
+        `;
+        
+        previewContainer.appendChild(thumbnail);
     }
 
     // 重新初始化拖拽排序
